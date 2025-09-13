@@ -1,0 +1,629 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Token Tracker</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+<style>
+:root{
+  --bg:#0b1220; --surface:#0f172a; --panel:#0b1220; --ink:#e5e7eb; --muted:#9aa3b2;
+  --border:#1f2a40; --accent:#4f7aff; --accent2:#22d3ee; --earn:#16a34a; --loss:#dc2626;
+}
+:root.light{ --bg:#f6f7fb; --surface:#ffffff; --panel:#ffffff; --ink:#0f172a; --muted:#64748b; --border:#e2e8f0; --accent:#2563eb; --accent2:#06b6d4; }
+*{box-sizing:border-box} html,body{height:100%}
+body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial;color:var(--ink);background:var(--bg)}
+a{color:inherit;text-decoration:none} button,input,select,textarea{font:inherit;color:inherit}
+.wrap{max-width:1100px;margin:0 auto;padding:18px 16px}
+.btn{border:1px solid var(--border);background:var(--surface);padding:10px 12px;border-radius:12px;cursor:pointer}
+.btn.primary{background:linear-gradient(180deg,var(--accent),#3a64d8);color:#fff;border-color:transparent}
+.btn.danger{background:linear-gradient(180deg,#f87171,#ef4444);color:#fff;border-color:transparent}
+.input{background:var(--panel);border:1px solid var(--border);padding:10px 12px;border-radius:12px;width:100%}
+.card{border:1px solid var(--border);border-radius:16px;background:var(--surface);box-shadow:0 10px 24px rgba(0,0,0,.28);overflow:hidden}
+.card .head{padding:12px 14px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center}
+.card .body{padding:14px}
+.grid{display:grid;gap:16px}
+.grid-2{grid-template-columns:1fr 1fr}
+.grid-12{grid-template-columns:280px 1fr}
+@media (max-width:980px){.grid-12{grid-template-columns:1fr}}
+.row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.badge{display:inline-block;padding:4px 10px;border-radius:999px;border:1px solid var(--border);font-size:12px;color:var(--muted)}
+.list{display:flex;flex-direction:column;gap:8px}
+/* tabs */
+.tabs{display:flex;gap:8px;flex-wrap:wrap}
+.tab{padding:8px 10px;border:1px solid var(--border);border-radius:10px;background:var(--panel);cursor:pointer}
+.tab.active{background:var(--accent);color:#fff;border-color:transparent}
+/* behavior rows */
+.beh-row{display:grid;grid-template-columns:1fr auto auto auto;gap:10px;align-items:center;border:1px solid var(--border);border-radius:12px;background:var(--panel);padding:10px 12px}
+.value{font-variant-numeric:tabular-nums;font-weight:800}
+.value.earn{color:var(--earn)} .value.loss{color:var(--loss)}
+.count{justify-self:end;padding:4px 10px;border-radius:999px;border:1px solid var(--border)}
+/* table */
+.table{width:100%;border-collapse:collapse}
+.table th,.table td{border-bottom:1px solid var(--border);padding:8px;text-align:left}
+/* modal */
+.modal{position:fixed;inset:0;display:none;place-items:center;background:rgba(0,0,0,.5);z-index:20}
+.modal.open{display:grid}
+.sheet{width:min(960px,96vw);max-height:92vh;overflow:auto;background:var(--surface);border:1px solid var(--border);border-radius:16px}
+.sheet header{padding:12px 14px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center}
+.sheet .body{padding:14px}
+/* theme switch */
+.switch{display:inline-flex;align-items:center;gap:6px;cursor:pointer}
+.switch input{display:none}
+.toggle{width:44px;height:24px;border-radius:999px;background:var(--panel);border:1px solid var(--border);position:relative}
+.knob{position:absolute;top:2px;left:2px;width:20px;height:20px;border-radius:999px;background:linear-gradient(180deg,#fff,#cbd5e1);transition:left .15s}
+input:checked + .toggle .knob{left:22px}
+/* auth cover */
+.cover{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px}
+.brand{display:flex;align-items:center;gap:12px;margin-bottom:8px}
+.logo{width:40px;height:40px;border-radius:10px;background:linear-gradient(135deg,var(--accent),var(--accent2));display:grid;place-items:center;color:#0b1220;font-weight:900}
+h1{margin:0;font-size:clamp(22px,3vw,26px)}
+.sub{color:var(--muted);font-size:12px}
+</style>
+</head>
+<body>
+
+<!-- AUTH GATE (only screen until logged in) -->
+<div id="authCover" class="cover">
+  <div class="card" style="width:min(760px,96vw)">
+    <div class="head">
+      <div class="brand">
+        <div class="logo">TT</div>
+        <div>
+          <h1>Token Tracker</h1>
+          <div class="sub">Sign up or log in to continue</div>
+        </div>
+      </div>
+      <label class="switch" title="Toggle Light/Dark">
+        <input id="themeToggle" type="checkbox"><div class="toggle"><div class="knob"></div></div>
+        <span class="sub" id="themeLabel">Dark</span>
+      </label>
+    </div>
+    <div class="body">
+      <div class="grid grid-2">
+        <!-- Signup -->
+        <div class="card">
+          <div class="head"><strong>Create account</strong></div>
+          <div class="body">
+            <div class="row"><input id="su_email" class="input" placeholder="Email"></div>
+            <div class="row"><input id="su_username" class="input" placeholder="Username"></div>
+            <div class="row"><input id="su_phone" class="input" placeholder="Phone number"></div>
+            <div class="row"><input id="su_password" class="input" type="password" placeholder="Password"></div>
+            <div class="row"><button id="btnSignup" class="btn primary" style="width:100%">Sign up</button></div>
+          </div>
+        </div>
+        <!-- Login -->
+        <div class="card">
+          <div class="head"><strong>Log in</strong></div>
+          <div class="body">
+            <div class="row"><input id="li_email" class="input" placeholder="Email"></div>
+            <div class="row"><input id="li_password" class="input" type="password" placeholder="Password"></div>
+            <div class="row">
+              <button id="btnLogin" class="btn primary" style="width:100%">Log in</button>
+            </div>
+            <div class="row"><span class="sub">Forgot password? Use Firebase Console to send a reset email.</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Firebase setup -->
+      <div class="card" style="margin-top:12px">
+        <div class="head"><strong>Firebase setup</strong><span class="sub">Paste your keys once • Saved locally</span></div>
+        <div class="body grid grid-2">
+          <input id="fb_apiKey" class="input" placeholder="apiKey">
+          <input id="fb_authDomain" class="input" placeholder="authDomain (yourapp.firebaseapp.com)">
+          <input id="fb_databaseURL" class="input" placeholder="databaseURL (https://...-default-rtdb.firebaseio.com)">
+          <input id="fb_projectId" class="input" placeholder="projectId">
+          <div class="row" style="grid-column:1/-1;justify-content:flex-end">
+            <button id="btnSaveFb" class="btn">Save</button>
+            <button id="btnTestFb" class="btn">Test connection</button>
+          </div>
+          <div class="row" style="grid-column:1/-1"><span class="sub" id="fbStatus">Status: not configured</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- APP (hidden until logged in) -->
+<div id="app" style="display:none">
+  <!-- Nav -->
+  <div class="wrap row" style="justify-content:space-between">
+    <div class="row">
+      <div class="logo">TT</div>
+      <div>
+        <h1 style="margin:0">Token Tracker</h1>
+        <div class="sub">Multi-user • Clients • Graphs • Calendar • Store</div>
+      </div>
+    </div>
+    <div class="row">
+      <label class="switch" title="Toggle Light/Dark">
+        <input id="themeToggle2" type="checkbox"><div class="toggle"><div class="knob"></div></div>
+        <span class="sub" id="themeLabel2">Dark</span>
+      </label>
+      <button id="btnSettings" class="btn">Settings</button>
+      <button id="btnLogout" class="btn danger">Log out</button>
+    </div>
+  </div>
+
+  <div class="wrap grid grid-12">
+    <!-- Clients -->
+    <section class="card">
+      <div class="head">
+        <strong>Clients</strong>
+        <button id="btnNewClient" class="btn">New Client</button>
+      </div>
+      <div class="body">
+        <div id="clientList" class="list"></div>
+      </div>
+    </section>
+
+    <!-- Client Panel -->
+    <section class="card" id="clientPanel" style="display:none">
+      <div class="head">
+        <div>
+          <h3 id="clientTitle" style="margin:0">Client</h3>
+          <div class="sub" id="clientSubtitle">Select a client</div>
+        </div>
+        <div class="tabs">
+          <div class="tab active" data-tab="log">Log</div>
+          <div class="tab" data-tab="graphs">Graphs</div>
+          <div class="tab" data-tab="store">Store</div>
+          <div class="tab" data-tab="calendar">Calendar</div>
+        </div>
+      </div>
+      <div class="body">
+        <!-- Log -->
+        <div class="tabpage" id="tab-log">
+          <div class="row" style="margin-bottom:10px">
+            <span class="badge" id="dateBadge"></span>
+            <span class="badge" id="netBadge">Net: 0</span>
+          </div>
+          <div class="grid grid-2">
+            <div>
+              <h4>Earn Tokens</h4>
+              <div id="earnList" class="list"></div>
+            </div>
+            <div>
+              <h4>Lose Tokens</h4>
+              <div id="loseList" class="list"></div>
+            </div>
+          </div>
+          <hr>
+          <h4>History</h4>
+          <table class="table" id="historyTable">
+            <thead><tr><th>Time</th><th>Behavior</th><th>Type</th><th>Amount</th><th></th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <!-- Graphs -->
+        <div class="tabpage" id="tab-graphs" style="display:none">
+          <div class="row" style="margin-bottom:8px">
+            <select id="range" class="input" style="max-width:160px">
+              <option value="7">Last 7 days</option>
+              <option value="14">Last 14 days</option>
+              <option value="30" selected>Last 30 days</option>
+              <option value="90">Last 90 days</option>
+            </select>
+            <button id="btnRefreshGraph" class="btn">Refresh</button>
+          </div>
+          <canvas id="chart" height="140"></canvas>
+        </div>
+        <!-- Store -->
+        <div class="tabpage" id="tab-store" style="display:none">
+          <div class="row" style="margin-bottom:8px">
+            <input id="itemName" class="input" placeholder="Item name">
+            <input id="itemCost" class="input" type="number" placeholder="Cost" style="max-width:160px">
+            <button id="btnAddItem" class="btn">Add Item</button>
+          </div>
+          <table class="table" id="storeTable">
+            <thead><tr><th>Item</th><th>Cost</th><th></th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <!-- Calendar -->
+        <div class="tabpage" id="tab-calendar" style="display:none">
+          <div class="row" style="margin-bottom:8px">
+            <input id="calMonth" class="input" type="month">
+            <button id="btnCalGo" class="btn">Go</button>
+            <button id="btnAddNote" class="btn">Add Note (today)</button>
+          </div>
+          <div class="grid" id="calendar" style="grid-template-columns: repeat(7,1fr); gap:6px"></div>
+        </div>
+      </div>
+    </section>
+  </div>
+</div>
+
+<!-- SETTINGS MODAL -->
+<div class="modal" id="modal">
+  <div class="sheet">
+    <header>
+      <h3 style="margin:0">Settings</h3>
+      <button id="closeModal" class="btn">Close ✕</button>
+    </header>
+    <div class="body">
+      <h4>Behaviors & Values</h4>
+      <table class="table" id="itemsTable">
+        <thead><tr><th>Type</th><th>Name</th><th>Value</th><th></th></tr></thead>
+        <tbody></tbody>
+      </table>
+      <div class="row" style="margin-top:8px">
+        <select id="newType" class="input" style="max-width:160px"><option value="earn">Earn</option><option value="lose">Lose</option></select>
+        <input id="newName" class="input" placeholder="Behavior name">
+        <input id="newValue" class="input" type="number" placeholder="Value (e.g., 5 or -5)" style="max-width:160px">
+        <button id="addItem" class="btn primary">Add</button>
+      </div>
+      <hr>
+      <div class="row">
+        <label class="row">HIPAA: Show initials only<input id="hipaa" type="checkbox" style="margin-left:6px"></label>
+        <button id="btnExportCfg" class="btn">Export Settings</button>
+        <input id="cfgFile" type="file" accept=".json" style="display:none">
+        <button id="btnImportCfg" class="btn">Import Settings</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ===== Theme ===== */
+const $ = s => document.querySelector(s);
+const $$ = s => Array.from(document.querySelectorAll(s));
+let theme = localStorage.getItem("theme") || "dark";
+function applyTheme(){
+  if(theme==="light"){ document.documentElement.classList.add("light"); $('#themeToggle').checked=true; $('#themeToggle2').checked=true; $('#themeLabel').textContent='Light'; $('#themeLabel2').textContent='Light'; }
+  else { document.documentElement.classList.remove("light"); $('#themeToggle').checked=false; $('#themeToggle2').checked=false; $('#themeLabel').textContent='Dark'; $('#themeLabel2').textContent='Dark'; }
+  localStorage.setItem("theme", theme);
+}
+$('#themeToggle').addEventListener('change', e => { theme = e.target.checked?'light':'dark'; applyTheme(); });
+$('#themeToggle2').addEventListener('change', e => { theme = e.target.checked?'light':'dark'; applyTheme(); });
+applyTheme();
+
+/* ===== App State ===== */
+const DEFAULT_CFG = {
+  currency:"$",
+  hipaaInitials:true,
+  items:[
+    {type:"earn", name:"Doing affirmations correctly", value:3},
+    {type:"earn", name:"Doing homework", value:2},
+    {type:"earn", name:"Taking accountability", value:5},
+    {type:"earn", name:"Listening to instructions", value:5},
+    {type:"earn", name:"Using appropriate social skills", value:5},
+    {type:"earn", name:"Waiting your turn to speak", value:4},
+    {type:"earn", name:"Engaging in conversations appropriately", value:4},
+    {type:"earn", name:"Transitioning in less than 10 seconds", value:3},
+    {type:"lose", name:"Saying rude things", value:-5},
+    {type:"lose", name:"Blaming others", value:-10},
+    {type:"lose", name:"Lying", value:-10},
+    {type:"lose", name:"Not taking accountability", value:-10},
+    {type:"lose", name:"Kicking", value:-10},
+    {type:"lose", name:"Hissing", value:-10},
+    {type:"lose", name:"Hitting", value:-10},
+    {type:"lose", name:"Negotiating", value:-10},
+    {type:"lose", name:"Talking over others", value:-8},
+    {type:"lose", name:"Transitioning in more than 10 seconds", value:-5},
+  ]
+};
+let app = {
+  user: null,
+  profile: null, // {username, phone}
+  cfg: DEFAULT_CFG,
+  clients: [],
+  data: {}, // {clientId:{log:[], store:[], notes:{}}}
+  activeClient: null,
+};
+
+/* ===== Firebase Setup (paste once) ===== */
+function getFbCfg(){
+  const cfg = JSON.parse(localStorage.getItem("fbCfg") || "null");
+  return cfg;
+}
+function setFbCfg(cfg){
+  localStorage.setItem("fbCfg", JSON.stringify(cfg));
+  $('#fbStatus').textContent = "Status: saved (reload not required)";
+}
+$('#btnSaveFb').addEventListener('click', ()=>{
+  const cfg = {
+    apiKey: $('#fb_apiKey').value.trim(),
+    authDomain: $('#fb_authDomain').value.trim(),
+    databaseURL: $('#fb_databaseURL').value.trim(),
+    projectId: $('#fb_projectId').value.trim(),
+  };
+  if(!cfg.apiKey || !cfg.authDomain || !cfg.databaseURL || !cfg.projectId) { alert('Please fill all Firebase fields.'); return; }
+  setFbCfg(cfg);
+});
+$('#btnTestFb').addEventListener('click', async ()=>{
+  const ok = await initFirebase(true).catch(()=>false);
+  $('#fbStatus').textContent = ok ? "Status: connected ✅" : "Status: connection failed ❌";
+});
+
+/* ===== Firebase Init ===== */
+let fb = null;
+async function loadScript(src){ return new Promise((res,rej)=>{ const s=document.createElement('script'); s.src=src; s.async=true; s.onload=res; s.onerror=rej; document.head.appendChild(s); }); }
+async function initFirebase(testOnly=false){
+  const cfg = getFbCfg(); if(!cfg) { alert('Add Firebase keys below first.'); return false; }
+  if(!window.firebase){
+    await Promise.all([
+      loadScript("https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"),
+      loadScript("https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"),
+      loadScript("https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"),
+    ]);
+  }
+  const appFB = firebase.apps[0] || firebase.initializeApp(cfg);
+  const auth = firebase.auth();
+  const db = firebase.database();
+  fb = {auth, db};
+  if(testOnly) return true;
+  auth.onAuthStateChanged(async user => {
+    if(user){
+      app.user = user;
+      await pullAll();
+      showApp();
+    } else {
+      showAuth();
+    }
+  });
+  return true;
+}
+
+/* ===== Auth Actions ===== */
+$('#btnSignup').addEventListener('click', async ()=>{
+  if(!fb) { const ok = await initFirebase(); if(!ok) return; }
+  const email = $('#su_email').value.trim();
+  const username = $('#su_username').value.trim();
+  const phone = $('#su_phone').value.trim();
+  const password = $('#su_password').value;
+  if(!email || !username || !phone || !password){ alert('Please complete all fields.'); return; }
+  try{
+    const cred = await fb.auth.createUserWithEmailAndPassword(email, password);
+    app.user = cred.user;
+    app.profile = {username, phone, email};
+    await fb.db.ref('users/'+app.user.uid+'/profile').set(app.profile);
+    await fb.db.ref('users/'+app.user.uid+'/cfg').set(app.cfg);
+    await fb.db.ref('users/'+app.user.uid+'/clients').set(app.clients);
+    await fb.db.ref('users/'+app.user.uid+'/data').set(app.data);
+    showApp();
+  }catch(e){ alert(e.message); }
+});
+$('#btnLogin').addEventListener('click', async ()=>{
+  if(!fb) { const ok = await initFirebase(); if(!ok) return; }
+  const email = $('#li_email').value.trim();
+  const password = $('#li_password').value;
+  if(!email || !password){ alert('Enter email and password.'); return; }
+  try{ await fb.auth.signInWithEmailAndPassword(email, password); /* onAuthStateChanged will show app */ }
+  catch(e){ alert(e.message); }
+});
+$('#btnLogout').addEventListener('click', async ()=>{
+  if(!fb) return;
+  await fb.auth.signOut();
+  app.user = null; showAuth();
+});
+
+/* ===== Show/Hide Views ===== */
+function showAuth(){
+  $('#authCover').style.display='';
+  $('#app').style.display='none';
+}
+function showApp(){
+  $('#authCover').style.display='none';
+  $('#app').style.display='';
+  renderClients();
+}
+
+/* ===== Pull/Push Cloud ===== */
+async function pullAll(){
+  if(!fb || !fb.db || !app.user) return;
+  const uid = app.user.uid;
+  const base = fb.db.ref('users/'+uid);
+  const snap = await base.get();
+  const data = snap.val() || {};
+  app.profile = data.profile || app.profile || null;
+  app.cfg = data.cfg || app.cfg;
+  app.clients = data.clients || [];
+  app.data = data.data || {};
+}
+async function pushAll(){
+  if(!fb || !app.user) return;
+  const uid = app.user.uid;
+  await fb.db.ref('users/'+uid).set({profile:app.profile, cfg:app.cfg, clients:app.clients, data:app.data});
+}
+
+/* ===== Clients ===== */
+function initialsOf(name){ return (name||'').split(/\s+/).filter(Boolean).slice(0,2).map(s=>s[0].toUpperCase()).join(''); }
+function renderClients(){
+  const list = $('#clientList'); list.innerHTML='';
+  if(app.clients.length===0){ const p=document.createElement('div'); p.className='sub'; p.textContent='No clients yet. Click “New Client”.'; list.appendChild(p); return; }
+  app.clients.forEach(c => {
+    const row = document.createElement('div'); row.className='row'; row.style.justifyContent='space-between';
+    const left = document.createElement('div');
+    const title = document.createElement('div'); title.style.fontWeight='700'; title.textContent = app.cfg.hipaaInitials ? (c.initials || initialsOf(c.name)) : c.name;
+    const sub = document.createElement('div'); sub.className='sub'; sub.textContent = c.name;
+    left.append(title, sub);
+    const open = document.createElement('button'); open.className='btn'; open.textContent='Open'; open.addEventListener('click', ()=> openClient(c.id));
+    const del = document.createElement('button'); del.className='btn'; del.textContent='Delete';
+    del.addEventListener('click', async ()=>{ if(!confirm('Remove this client?')) return; app.clients = app.clients.filter(x=>x.id!==c.id); delete app.data[c.id]; await pushAll(); renderClients(); });
+    row.append(left, (function(){const d=document.createElement('div'); d.append(open, del); return d;})());
+    list.appendChild(row);
+  });
+}
+$('#btnNewClient').addEventListener('click', async ()=>{
+  const name = prompt('Client full name:'); if(!name) return;
+  const id = 'c_'+Math.random().toString(36).slice(2,9);
+  const client = {id, name, initials: initialsOf(name)};
+  app.clients.push(client); app.data[id] = {log:[], store:[], notes:{}};
+  await pushAll(); renderClients();
+});
+function openClient(id){
+  app.activeClient = id;
+  $('#clientPanel').style.display='';
+  const c = app.clients.find(x=>x.id===id);
+  $('#clientTitle').textContent = app.cfg.hipaaInitials ? c.initials : c.name;
+  $('#clientSubtitle').textContent = app.cfg.hipaaInitials ? c.name + ' (hidden from title)' : c.initials;
+  $('#dateBadge').textContent = new Date().toISOString().slice(0,10);
+  renderBehaviorLists(); renderHistory(); updateNetBadge(); drawChart(); renderStore(); renderCalendar();
+}
+
+/* ===== Behaviors / Logging ===== */
+function renderBehaviorLists(){
+  const earn = app.cfg.items.filter(i=>i.type==='earn');
+  const lose = app.cfg.items.filter(i=>i.type==='lose');
+  const mk = it => {
+    const row = document.createElement('div'); row.className='beh-row';
+    const nm = document.createElement('div'); nm.textContent = it.name;
+    const val = document.createElement('div'); val.className = 'value ' + (it.value>0?'earn':'loss'); val.textContent = (it.value>0?'+':'') + app.cfg.currency + Math.abs(it.value);
+    const count = document.createElement('div'); count.className='count'; count.textContent=' ';
+    const btn = document.createElement('button'); btn.className='btn'; btn.textContent='Add';
+    const add = async ()=>{ addEntry(it); if(it.value>0) fireConfetti(); await pushAll(); };
+    btn.addEventListener('click', add); row.addEventListener('click', e=>{ if(e.target!==btn) add(); });
+    row.append(nm,val,count,btn); return row;
+  };
+  const el = $('#earnList'); el.innerHTML=''; earn.forEach(i=>el.appendChild(mk(i)));
+  const ll = $('#loseList'); ll.innerHTML=''; lose.forEach(i=>ll.appendChild(mk(i)));
+}
+function addEntry(it){
+  if(!app.activeClient) return alert('Open a client first.');
+  app.data[app.activeClient].log.push({ts:Date.now(), name:it.name, value:it.value, type:it.type});
+  renderHistory(); updateNetBadge();
+}
+function renderHistory(){
+  if(!app.activeClient) return;
+  const body = $('#historyTable tbody'); body.innerHTML='';
+  app.data[app.activeClient].log.slice().reverse().forEach((e, idx) => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${new Date(e.ts).toLocaleTimeString()}</td><td>${e.name}</td><td>${e.type}</td><td>${e.value>0?'+':''}${app.cfg.currency}${Math.abs(e.value)}</td>`;
+    const td = document.createElement('td'); const del = document.createElement('button'); del.className='btn'; del.textContent='Delete';
+    del.addEventListener('click', async ()=>{
+      const real = app.data[app.activeClient].log.length - 1 - idx;
+      app.data[app.activeClient].log.splice(real,1); await pushAll(); renderHistory(); updateNetBadge(); drawChart();
+    });
+    td.appendChild(del); tr.appendChild(td); body.appendChild(tr);
+  });
+}
+function updateNetBadge(){
+  if(!app.activeClient) return;
+  const total = app.data[app.activeClient].log.reduce((a,b)=>a+b.value,0);
+  $('#netBadge').textContent = 'Net: ' + total;
+}
+
+/* ===== Graphs ===== */
+let chart;
+function drawChart(){
+  if(!app.activeClient) return;
+  const days = Number($('#range').value || 30);
+  const byDay = {}; const today = new Date();
+  for(let i=days-1;i>=0;i--){ const d=new Date(today); d.setDate(today.getDate()-i); const k=d.toISOString().slice(0,10); byDay[k]=0; }
+  app.data[app.activeClient].log.forEach(e=>{ const k=new Date(e.ts).toISOString().slice(0,10); if(k in byDay) byDay[k]+=e.value; });
+  const labels = Object.keys(byDay); const values = Object.values(byDay);
+  const ctx = $('#chart').getContext('2d'); if(chart) chart.destroy();
+  chart = new Chart(ctx, { type:'line', data:{labels, datasets:[{label:'Net tokens', data:values, tension:.3}]}, options:{responsive:true, scales:{y:{beginAtZero:true}}}} );
+}
+$('#btnRefreshGraph').addEventListener('click', drawChart);
+$('#range').addEventListener('change', drawChart);
+
+/* ===== Store ===== */
+function renderStore(){
+  if(!app.activeClient) return;
+  const body = $('#storeTable tbody'); body.innerHTML='';
+  (app.data[app.activeClient].store || []).forEach((it,i)=>{
+    const tr = document.createElement('tr'); tr.innerHTML = `<td>${it.name}</td><td>${app.cfg.currency}${it.cost}</td>`;
+    const td = document.createElement('td'); const del = document.createElement('button'); del.className='btn'; del.textContent='Remove';
+    del.addEventListener('click', async ()=>{ app.data[app.activeClient].store.splice(i,1); await pushAll(); renderStore(); });
+    td.appendChild(del); tr.appendChild(td); body.appendChild(tr);
+  });
+}
+$('#btnAddItem').addEventListener('click', async ()=>{
+  if(!app.activeClient) return alert('Open a client first.');
+  const name = $('#itemName').value.trim(); const cost = Number($('#itemCost').value);
+  if(!name || isNaN(cost)) return alert('Enter item name and cost.');
+  app.data[app.activeClient].store = app.data[app.activeClient].store || [];
+  app.data[app.activeClient].store.push({name, cost, date:new Date().toISOString().slice(0,10)});
+  $('#itemName').value=''; $('#itemCost').value=''; await pushAll(); renderStore();
+});
+
+/* ===== Calendar ===== */
+function renderCalendar(){
+  if(!app.activeClient) return;
+  const cal = $('#calendar'); cal.innerHTML='';
+  if(!$('#calMonth').value) $('#calMonth').value = new Date().toISOString().slice(0,7);
+  const [Y,M] = $('#calMonth').value.split('-').map(Number);
+  const first = new Date(Y, M-1, 1);
+  const start = new Date(first); start.setDate(1 - ((first.getDay()+6)%7)); // Monday start
+  for(let i=0;i<42;i++){
+    const d = new Date(start); d.setDate(start.getDate()+i);
+    const key = d.toISOString().slice(0,10);
+    const cell = document.createElement('div'); cell.className='card'; cell.style.padding='8px';
+    cell.innerHTML = `<div class="sub">${key.slice(8,10)}</div>`;
+    const notes = (app.data[app.activeClient].notes||{})[key] || [];
+    notes.slice(0,3).forEach(n => { const p=document.createElement('div'); p.className='sub'; p.textContent='• '+n; cell.appendChild(p); });
+    cell.addEventListener('click', async ()=>{
+      const n = prompt('Add note for '+key); if(!n) return;
+      app.data[app.activeClient].notes = app.data[app.activeClient].notes || {};
+      app.data[app.activeClient].notes[key] = app.data[app.activeClient].notes[key] || [];
+      app.data[app.activeClient].notes[key].push(n); await pushAll(); renderCalendar();
+    });
+    cal.appendChild(cell);
+  }
+}
+$('#btnCalGo').addEventListener('click', renderCalendar);
+$('#btnAddNote').addEventListener('click', async ()=>{
+  if(!app.activeClient) return alert('Open a client first.');
+  const key = new Date().toISOString().slice(0,10);
+  const n = prompt('Note for today'); if(!n) return;
+  app.data[app.activeClient].notes = app.data[app.activeClient].notes || {};
+  app.data[app.activeClient].notes[key] = app.data[app.activeClient].notes[key] || [];
+  app.data[app.activeClient].notes[key].push(n); await pushAll(); renderCalendar();
+});
+
+/* ===== Settings (hidden until logged in) ===== */
+const modal = $('#modal');
+$('#btnSettings').addEventListener('click', ()=>{ modal.classList.add('open'); rebuildItemsTable(); $('#hipaa').checked = !!app.cfg.hipaaInitials; });
+$('#closeModal').addEventListener('click', ()=> modal.classList.remove('open'));
+modal.addEventListener('click', e=>{ if(e.target===modal) modal.classList.remove('open'); });
+document.addEventListener('keydown', e=>{ if(e.key==='Escape' && modal.classList.contains('open')) modal.classList.remove('open'); });
+function rebuildItemsTable(){
+  const tb = $('#itemsTable tbody'); tb.innerHTML='';
+  app.cfg.items.forEach((it,idx)=>{
+    const tr = document.createElement('tr');
+    const tdT=document.createElement('td'), tdN=document.createElement('td'), tdV=document.createElement('td'), tdA=document.createElement('td');
+    const sel = document.createElement('select'); sel.className='input'; sel.innerHTML='<option value="earn">Earn</option><option value="lose">Lose</option>'; sel.value=it.type;
+    sel.addEventListener('change', async e=>{ it.type=e.target.value; await pushAll(); renderBehaviorLists(); });
+    const name = document.createElement('input'); name.className='input'; name.value=it.name; name.addEventListener('input', async e=>{ it.name=e.target.value; await pushAll(); renderBehaviorLists(); });
+    const val = document.createElement('input'); val.className='input'; val.type='number'; val.value=it.value; val.addEventListener('input', async e=>{ const v=Number(e.target.value); if(!isNaN(v)){ it.value=v; await pushAll(); renderBehaviorLists(); } });
+    const rm = document.createElement('button'); rm.className='btn'; rm.textContent='Remove'; rm.addEventListener('click', async ()=>{ if(!confirm('Remove item?')) return; app.cfg.items.splice(idx,1); await pushAll(); rebuildItemsTable(); renderBehaviorLists(); });
+    tdT.appendChild(sel); tdN.appendChild(name); tdV.appendChild(val); tdA.appendChild(rm); tr.append(tdT,tdN,tdV,tdA); tb.appendChild(tr);
+  });
+}
+$('#addItem').addEventListener('click', async ()=>{
+  const type=$('#newType').value, name=$('#newName').value.trim(), val=Number($('#newValue').value);
+  if(!name || isNaN(val)) return alert('Enter a name and numeric value.');
+  app.cfg.items.push({type,name,value:val}); $('#newName').value=''; $('#newValue').value=''; await pushAll(); rebuildItemsTable(); renderBehaviorLists();
+});
+$('#hipaa').addEventListener('change', async e=>{ app.cfg.hipaaInitials = e.target.checked; await pushAll(); renderClients(); if(app.activeClient) openClient(app.activeClient); });
+
+/* ===== Confetti ===== */
+function fireConfetti(){ try{ confetti({particleCount:80,spread:70,origin:{y:0.3}}); }catch{} }
+
+/* ===== Tabs ===== */
+$$('.tab').forEach(t => t.addEventListener('click', ()=>{
+  $$('.tab').forEach(x=>x.classList.remove('active')); t.classList.add('active');
+  const tg=t.dataset.tab; $$('.tabpage').forEach(p => p.style.display = (p.id==='tab-'+tg)?'':'none');
+  if(tg==='graphs') drawChart(); if(tg==='calendar') renderCalendar();
+}));
+
+/* ===== Boot ===== */
+(function boot(){
+  const cfg = getFbCfg();
+  if(cfg){
+    $('#fb_apiKey').value = cfg.apiKey||'';
+    $('#fb_authDomain').value = cfg.authDomain||'';
+    $('#fb_databaseURL').value = cfg.databaseURL||'';
+    $('#fb_projectId').value = cfg.projectId||'';
+    $('#fbStatus').textContent = 'Status: loaded from storage';
+  }
+  showAuth();
+  // Settings button is NOT visible here; UI is auth-gated above.
+})();
+</script>
+</body>
+</html>
